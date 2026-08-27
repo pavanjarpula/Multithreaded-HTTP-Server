@@ -1,0 +1,2 @@
+Hello from the C++ HTTP Server!
+This is a plain text file served as a static resource.

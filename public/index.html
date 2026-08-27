@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C++ HTTP Server</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>C++ Multithreaded HTTP Server</h1>
+        <p>A production-quality HTTP/1.1 server built from scratch using low-level TCP sockets.</p>
+        <h2>Features</h2>
+        <ul>
+            <li>TCP socket programming with Winsock2/POSIX</li>
+            <li>Fixed-size thread pool with task queue</li>
+            <li>HTTP/1.1 request parsing</li>
+            <li>Static file serving with MIME types</li>
+            <li>Thread-safe logging and metrics</li>
+            <li>Graceful shutdown on SIGINT/SIGTERM</li>
+        </ul>
+        <h2>Try It</h2>
+        <pre>
+curl http://localhost:8080/health
+curl http://localhost:8080/hello
+curl http://localhost:8080/metrics
+curl -X POST -d "test body" http://localhost:8080/echo
+        </pre>
+    </div>
+</body>
+</html>

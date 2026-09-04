@@ -1,0 +1,16 @@
+[Unit]
+Description=C++ Concurrent HTTP Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/http-server
+ExecStart=/opt/http-server/http_server --port 8080 --threads 4
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=http-server
+
+[Install]
+WantedBy=multi-user.target

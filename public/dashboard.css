@@ -1,0 +1,136 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #0f0f1a;
+    color: #e0e0e0;
+    min-height: 100vh;
+}
+
+.dashboard-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #2a2a3e;
+}
+
+header h1 {
+    font-size: 22px;
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+.badge {
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.badge.online {
+    background: #0d3320;
+    color: #00e676;
+    border: 1px solid #00e67644;
+}
+
+.badge.offline {
+    background: #331515;
+    color: #ff5252;
+    border: 1px solid #ff525244;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.metric-card {
+    background: #161625;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+}
+
+.metric-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666680;
+    margin-bottom: 8px;
+}
+
+.metric-value {
+    font-size: 24px;
+    font-weight: 700;
+    font-family: 'Consolas', 'Courier New', monospace;
+    color: #e0e0e0;
+}
+
+.metric-value.success {
+    color: #00e676;
+}
+
+.metric-value.warning {
+    color: #ffc107;
+}
+
+.metric-value.danger {
+    color: #ff5252;
+}
+
+.charts-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.chart-container {
+    background: #161625;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.chart-container h3 {
+    font-size: 13px;
+    color: #8888aa;
+    margin-bottom: 12px;
+    font-weight: 500;
+}
+
+canvas {
+    width: 100% !important;
+    height: auto !important;
+}
+
+@media (max-width: 768px) {
+    .charts-section {
+        grid-template-columns: 1fr;
+    }
+
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    header {
+        flex-direction: column;
+        gap: 12px;
+        text-align: center;
+    }
+}

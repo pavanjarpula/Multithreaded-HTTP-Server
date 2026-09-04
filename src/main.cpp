@@ -54,7 +54,7 @@ static void signal_handler(int signal) {
 int main(int argc, char* argv[]) {
     server::Config config = server::Config::parse(argc, argv);
 
-    server::Logger::instance().set_level(server::LogLevel::LOG_DEBUG);
+    server::Logger::instance().set_level(server::LogLevel::LOG_INFO);
     LOG_INFO("Starting HTTP server on port " + std::to_string(config.port));
 
 #ifdef _WIN32

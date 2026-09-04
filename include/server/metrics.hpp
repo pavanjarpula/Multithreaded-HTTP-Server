@@ -5,6 +5,7 @@
 #include <atomic>
 #include <chrono>
 #include <sstream>
+#include <iomanip>
 #include <mutex>
 
 namespace server {
@@ -46,16 +47,28 @@ public:
         latency_count_ += 1;
     }
 
+    void set_queue_size(std::size_t size) {
+        queue_size_.store(static_cast<std::uint64_t>(size), std::memory_order_relaxed);
+    }
+
+    void set_thread_count(std::size_t count) {
+        thread_count_.store(static_cast<std::uint64_t>(count), std::memory_order_relaxed);
+    }
+
     std::string to_json() const {
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         long long uptime_secs = std::chrono::duration_cast<std::chrono::seconds>(
             now - start_time_).count();
 
         double avg_latency = 0.0;
+        double requests_per_sec = 0.0;
         {
             std::lock_guard<std::mutex> lock(latency_mutex_);
             if (latency_count_ > 0) {
                 avg_latency = total_latency_ms_ / static_cast<double>(latency_count_);
+            }
+            if (uptime_secs > 0) {
+                requests_per_sec = static_cast<double>(total_requests_.load()) / static_cast<double>(uptime_secs);
             }
         }
 
@@ -69,7 +82,10 @@ public:
             << "  \"peak_connections\": " << peak_connections_.load() << ",\n"
             << "  \"total_bytes_sent\": " << total_bytes_sent_.load() << ",\n"
             << "  \"average_latency_ms\": " << avg_latency << ",\n"
-            << "  \"uptime_seconds\": " << uptime_secs << "\n"
+            << "  \"requests_per_second\": " << std::fixed << std::setprecision(2) << requests_per_sec << ",\n"
+            << "  \"uptime_seconds\": " << uptime_secs << ",\n"
+            << "  \"thread_count\": " << thread_count_.load() << ",\n"
+            << "  \"queue_size\": " << queue_size_.load() << "\n"
             << "}";
         return oss.str();
     }
@@ -87,6 +103,8 @@ private:
         , active_connections_(0)
         , peak_connections_(0)
         , total_bytes_sent_(0)
+        , queue_size_(0)
+        , thread_count_(0)
         , total_latency_ms_(0.0)
         , latency_count_(0) {
     }
@@ -99,6 +117,8 @@ private:
     std::atomic<std::int64_t> active_connections_;
     std::atomic<std::uint64_t> peak_connections_;
     std::atomic<std::uint64_t> total_bytes_sent_;
+    std::atomic<std::uint64_t> queue_size_;
+    std::atomic<std::uint64_t> thread_count_;
 
     // Latency tracked with mutex (std::atomic<double> lacks fetch_add in C++17)
     mutable std::mutex latency_mutex_;

@@ -23,6 +23,9 @@ public:
     void start();
     void stop();
 
+    std::size_t queue_size() const { return pool_ ? pool_->queue_size() : 0; }
+    std::size_t thread_count() const { return pool_ ? pool_->thread_count() : 0; }
+
     TcpServer(const TcpServer&) = delete;
     TcpServer& operator=(const TcpServer&) = delete;
 

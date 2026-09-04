@@ -56,6 +56,8 @@ void TcpServer::start() {
 
     pool_ = std::make_unique<ThreadPool>(config_.thread_count);
 
+    Metrics::instance().set_thread_count(pool_->thread_count());
+
     accept_loop();
 
     LOG_INFO("Shutting down thread pool...");
@@ -126,6 +128,7 @@ void TcpServer::handle_client(socket_t client_fd, std::string client_addr) {
     auto start_time = std::chrono::steady_clock::now();
 
     Metrics::instance().record_request();
+    Metrics::instance().set_queue_size(pool_ ? pool_->queue_size() : 0);
 
 #ifdef _WIN32
     DWORD timeout = 10000;

@@ -3,29 +3,148 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>C++ HTTP Server</title>
+    <title>C++ Concurrent HTTP Server</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>C++ Multithreaded HTTP Server</h1>
-        <p>A production-quality HTTP/1.1 server built from scratch using low-level TCP sockets.</p>
-        <h2>Features</h2>
-        <ul>
-            <li>TCP socket programming with Winsock2/POSIX</li>
-            <li>Fixed-size thread pool with task queue</li>
-            <li>HTTP/1.1 request parsing</li>
-            <li>Static file serving with MIME types</li>
-            <li>Thread-safe logging and metrics</li>
-            <li>Graceful shutdown on SIGINT/SIGTERM</li>
-        </ul>
-        <h2>Try It</h2>
-        <pre>
-curl http://localhost:8080/health
+    <nav>
+        <div class="nav-brand">C++ HTTP Server</div>
+        <div class="nav-links">
+            <a href="/" class="active">Home</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="https://github.com" target="_blank">GitHub</a>
+        </div>
+    </nav>
+
+    <main>
+        <section class="hero">
+            <h1>C++ Concurrent HTTP Server</h1>
+            <p class="subtitle">A multithreaded HTTP/1.1 server built from scratch using low-level TCP sockets</p>
+            <div class="status-indicator" id="server-status">
+                <span class="pulse"></span>
+                <span class="status-text">Checking...</span>
+            </div>
+            <div class="hero-actions">
+                <a href="/dashboard" class="btn btn-primary">Open Dashboard</a>
+                <a href="/metrics" class="btn btn-secondary">View Metrics</a>
+            </div>
+        </section>
+
+        <section class="features">
+            <h2>Architecture</h2>
+            <div class="architecture-flow">
+                <div class="flow-step">Client</div>
+                <div class="flow-arrow">&darr;</div>
+                <div class="flow-step">TCP Socket</div>
+                <div class="flow-arrow">&darr;</div>
+                <div class="flow-step">Accept Loop</div>
+                <div class="flow-arrow">&darr;</div>
+                <div class="flow-step">Blocking Queue</div>
+                <div class="flow-arrow">&darr;</div>
+                <div class="flow-step">Thread Pool</div>
+                <div class="flow-arrow">&darr;</div>
+                <div class="flow-step">HTTP Parser</div>
+                <div class="flow-arrow">&darr;</div>
+                <div class="flow-step">Router</div>
+                <div class="flow-arrow">&darr;</div>
+                <div class="flow-step">Request Handler</div>
+                <div class="flow-arrow">&darr;</div>
+                <div class="flow-step">HTTP Response</div>
+            </div>
+        </section>
+
+        <section class="tech-stack">
+            <h2>Core Technologies</h2>
+            <div class="tech-grid">
+                <div class="tech-item">
+                    <h3>C++17</h3>
+                    <p>Modern C++ with std::thread, std::atomic, std::optional, std::filesystem</p>
+                </div>
+                <div class="tech-item">
+                    <h3>TCP Sockets</h3>
+                    <p>Raw socket() / bind() / listen() / accept() / recv() / send()</p>
+                </div>
+                <div class="tech-item">
+                    <h3>HTTP/1.1</h3>
+                    <p>Request parsing, header extraction, Content-Length body handling</p>
+                </div>
+                <div class="tech-item">
+                    <h3>Thread Pool</h3>
+                    <p>Fixed-size worker threads with blocking task queue</p>
+                </div>
+                <div class="tech-item">
+                    <h3>Synchronization</h3>
+                    <p>mutex, condition_variable, atomic counters for lock-free metrics</p>
+                </div>
+                <div class="tech-item">
+                    <h3>Live Monitoring</h3>
+                    <p>Real-time metrics dashboard with performance charts</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="endpoints">
+            <h2>API Endpoints</h2>
+            <div class="endpoint-list">
+                <div class="endpoint">
+                    <span class="method get">GET</span>
+                    <span class="path">/</span>
+                    <span class="desc">Landing page</span>
+                </div>
+                <div class="endpoint">
+                    <span class="method get">GET</span>
+                    <span class="path">/dashboard</span>
+                    <span class="desc">Live monitoring dashboard</span>
+                </div>
+                <div class="endpoint">
+                    <span class="method get">GET</span>
+                    <span class="path">/health</span>
+                    <span class="desc">Health check</span>
+                </div>
+                <div class="endpoint">
+                    <span class="method get">GET</span>
+                    <span class="path">/hello</span>
+                    <span class="desc">Hello world</span>
+                </div>
+                <div class="endpoint">
+                    <span class="method get">GET</span>
+                    <span class="path">/metrics</span>
+                    <span class="desc">Server metrics (JSON)</span>
+                </div>
+                <div class="endpoint">
+                    <span class="method post">POST</span>
+                    <span class="path">/echo</span>
+                    <span class="desc">Echo request body</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="try-it">
+            <h2>Quick Start</h2>
+            <pre><code>curl http://localhost:8080/health
 curl http://localhost:8080/hello
 curl http://localhost:8080/metrics
-curl -X POST -d "test body" http://localhost:8080/echo
-        </pre>
-    </div>
+curl -X POST -d "test body" http://localhost:8080/echo</code></pre>
+        </section>
+    </main>
+
+    <footer>
+        <p>Built with C++17 &mdash; TCP Sockets &mdash; Thread Pools &mdash; No Frameworks</p>
+    </footer>
+
+    <script>
+        fetch('/health')
+            .then(r => r.json())
+            .then(data => {
+                const el = document.getElementById('server-status');
+                el.querySelector('.status-text').textContent = 'ONLINE';
+                el.classList.add('online');
+            })
+            .catch(() => {
+                const el = document.getElementById('server-status');
+                el.querySelector('.status-text').textContent = 'OFFLINE';
+                el.classList.add('offline');
+            });
+    </script>
 </body>
 </html>

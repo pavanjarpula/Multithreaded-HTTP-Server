@@ -1,118 +1,93 @@
 # Architecture
 
-## System Overview
+## Overview
 
-The server follows a single-acceptor, thread-pool architecture:
+A single-acceptor, fixed-size thread-pool HTTP server.
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                    Main Thread                        │
-│  ┌─────────────┐                                     │
-│  │ Signal Handler│─── SIGINT/SIGTERM ──→ stop()      │
-│  └─────────────┘                                     │
-│  ┌─────────────┐     ┌────────────────────────────┐  │
-│  │ accept_loop  │────→│ Task Queue (BlockingQueue) │  │
-│  └─────────────┘     └──────────┬─────────────────┘  │
-└──────────────────────────────────┼────────────────────┘
-                                   │
-                    ┌──────────────┼──────────────┐
-                    │              │              │
-              ┌─────▼─────┐ ┌─────▼─────┐ ┌─────▼─────┐
-              │  Worker 1  │ │  Worker 2  │ │  Worker N  │
-              └─────┬──────┘ └─────┬──────┘ └─────┬──────┘
-                    │              │              │
-              ┌─────▼──────────────▼──────────────▼─────┐
-              │              Request Handler             │
-              │  ┌──────────┐  ┌────────┐  ┌─────────┐  │
-              │  │HttpParser│→ │ Router │→ │Response │  │
-              │  └──────────┘  └───┬────┘  └─────────┘  │
-              │                    │                     │
-              │         ┌─────────┼─────────┐           │
-              │         │         │         │           │
-              │    ┌────▼───┐ ┌───▼────┐ ┌──▼──────┐  │
-              │    │Dynamic │ │Static  │ │Metrics  │  │
-              │    │Routes  │ │Files   │ │Logger   │  │
-              │    └────────┘ └────────┘ └─────────┘  │
-              └────────────────────────────────────────┘
+Client
+  │ TCP
+  ▼
+Main Thread (accept loop)
+  │ submit task
+  ▼
+BlockingQueue<function<void()>>
+  │ dequeue
+  ▼
+Worker Thread Pool (N threads)
+  │
+  ├── recv_request()
+  ├── HttpParser::parse()
+  ├── Router::handle()
+  │     ├── Dynamic route handler
+  │     └── StaticFileHandler
+  ├── HttpResponse::serialize()
+  ├── send_all()
+  └── close socket
 ```
 
-## Component Descriptions
+## Request Lifecycle
 
-### Socket Layer (`socket_compat.hpp`)
-Cross-platform socket abstraction providing:
-- `socket_t` type alias (`SOCKET` on Windows, `int` on POSIX)
-- `close_socket()` — platform-agnostic close
-- `last_socket_error()` — get last error code
-- `invalid_socket()` — platform-appropriate invalid sentinel
+1. Client connects via TCP
+2. `accept()` returns client file descriptor
+3. fd submitted to `BlockingQueue`
+4. Worker thread dequeues and calls `handle_client(fd)`
+5. `recv_request()` reads until `\r\n\r\n` + Content-Length body
+6. `HttpParser::parse()` extracts method, path, headers, body
+7. `Router::handle()` dispatches to matching handler
+8. Handler returns `HttpResponse`
+9. `serialize()` builds HTTP/1.1 response string
+10. `send_all()` writes complete response to socket
+11. Socket closed, metrics updated
 
-### TCP Server (`tcp_server.hpp/cpp`)
-Core networking component:
-- Creates listening socket with `SO_REUSEADDR`
-- `accept_loop()` runs in the main thread
-- Submits client fds to the thread pool
-- `handle_client()` runs in worker threads
-- Handles partial reads/writes, timeouts, error recovery
+## Why a Thread Pool?
 
-### Thread Pool (`thread_pool.hpp`)
-Fixed-size reusable thread pool:
-- `BlockingQueue<std::function<void()>>` for task dispatch
-- Workers block on condition variable when idle
-- `submit()` for non-blocking task enqueue
-- `shutdown()` stops accepting, drains queue, joins threads
-- Exception-safe worker boundaries
+Thread-per-connection creates unbounded threads under load. A thread pool bounds resource usage:
 
-### Blocking Queue (`blocking_queue.hpp`)
-Thread-safe producer/consumer queue:
-- `std::mutex` for synchronization
-- `std::condition_variable` for blocking wait
-- `wait_and_pop()` — blocking with shutdown support
-- `try_pop()` — non-blocking attempt
-- `shutdown()` — signals all waiters
+```
+Thread Per Connection         Thread Pool
+─────────────────────         ───────────
+1000 connections              1000 connections
+= 1000 threads                = 8 worker threads
+= OS scheduling overhead      = bounded memory
+= thread explosion risk       = predictable latency
+```
 
-### HTTP Parser (`http_parser.hpp/cpp`)
-HTTP/1.1 request parser:
-- Parses request line, headers, body
-- Content-Length body extraction
-- Returns `ParseResult` with error codes
-- Limits: 64KB headers, 1MB body
+Trade-off: blocking I/O in worker threads. Acceptable for an educational server.
 
-### Router (`router.hpp/cpp`)
-Request dispatching:
-- `std::unordered_map<path, unordered_map<method, handler>>`
-- Method/path matching with 405 support
-- Delegates unmatched GET/HEAD to static file handler
-- Built-in routes: /, /health, /hello, /metrics, /echo
+## Why a Blocking Queue?
 
-### Static File Handler (`static_file_handler.hpp/cpp`)
-Secure file serving:
-- `std::filesystem` for path resolution and validation
-- MIME type detection from extension
-- URL decoding (%xx, +)
-- Path normalization (resolve . and ..)
-- Security: resolved path must stay within document root
+Decouples accept rate from processing rate:
 
-### Logger (`logger.hpp`)
-Thread-safe structured logging:
-- `std::mutex` prevents interleaved output
-- Timestamp, level, thread ID
-- Output to stdout and optional file
+```
+accept() ──push──▶ BlockingQueue ──pop──▶ Worker Thread
+```
 
-### Metrics (`metrics.hpp`)
-Thread-safe performance tracking:
-- `std::atomic` counters for hot-path metrics
-- `std::mutex` for latency tracking (atomic<double> lacks fetch_add)
-- JSON serialization for `/metrics` endpoint
-- Tracks: requests, errors, connections, bytes, latency, uptime
+- Workers sleep on `condition_variable` when idle (zero CPU)
+- `push()` wakes one worker via `notify_one()`
+- `shutdown()` sets flag and calls `notify_all()` to wake all waiters
 
-## Data Flow
+## Why Atomic Metrics?
 
-1. Client connects → `accept()` returns fd
-2. fd submitted to thread pool queue
-3. Worker dequeues and calls `handle_client(fd)`
-4. `recv_request()` reads until `\r\n\r\n` and Content-Length body
-5. `HttpParser::parse()` extracts structured request
-6. `Router::handle()` dispatches to handler
-7. Handler returns `HttpResponse`
-8. `serialize()` builds HTTP response string
-9. `send_all()` writes complete response
-10. Connection closed, metrics updated
+Hot-path counters (total_requests, bytes_sent) update on every request. Using `std::atomic<uint64_t>` avoids mutex contention:
+
+```
+Worker Thread 1 ──fetch_add──▶ total_requests_ (atomic)
+Worker Thread 2 ──fetch_add──▶ total_requests_ (atomic)
+Worker Thread 3 ──fetch_add──▶ total_requests_ (atomic)
+```
+
+Latency uses mutex because `std::atomic<double>` lacks `fetch_add` in C++17.
+
+## Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| TcpServer | `tcp_server.hpp/cpp` | Socket bind/listen/accept, client handling |
+| ThreadPool | `thread_pool.hpp` | Fixed-size worker pool with task queue |
+| BlockingQueue | `blocking_queue.hpp` | Thread-safe producer/consumer queue |
+| HttpParser | `http_parser.hpp/cpp` | HTTP/1.1 request parsing |
+| Router | `router.hpp/cpp` | URL dispatch, method matching |
+| StaticFileHandler | `static_file_handler.hpp/cpp` | Secure file serving with MIME detection |
+| Metrics | `metrics.hpp` | Atomic counters, JSON serialization |
+| Logger | `logger.hpp` | Thread-safe structured logging |

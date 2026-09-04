@@ -8,10 +8,10 @@
 
 | | Link |
 |---|---|
-| **Landing Page** | [Open Live Server](https://cpp-http-server.onrender.com/) |
-| **Dashboard** | [Open Live Dashboard](https://cpp-http-server.onrender.com/dashboard.html) |
-| **Metrics API** | [/metrics](https://cpp-http-server.onrender.com/metrics) |
-| **Health Check** | [/health](https://cpp-http-server.onrender.com/health) |
+| **Landing Page** | [Open Live Server](https://multithreaded-http-server.onrender.com/) |
+| **Dashboard** | [Open Live Dashboard](https://multithreaded-http-server.onrender.com/dashboard.html) |
+| **Metrics API** | [/metrics](https://multithreaded-http-server.onrender.com/metrics) |
+| **Health Check** | [/health](https://multithreaded-http-server.onrender.com/health) |
 
 > **Note:** Free tier hosting may take 30-60 seconds to wake up after idle.
 
@@ -94,7 +94,7 @@ flowchart TD
 ### Request Lifecycle — What Happens When You Visit a Page
 
 ```
-You type: https://cpp-http-server.onrender.com/dashboard.html
+    You type: https://multithreaded-http-server.onrender.com/dashboard.html
     │
     ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -142,7 +142,7 @@ You type: https://cpp-http-server.onrender.com/dashboard.html
 │                                                             │
 │   Raw request:                                             │
 │   GET /dashboard.html HTTP/1.1                             │
-│   Host: cpp-http-server.onrender.com                       │
+│       Host: multithreaded-http-server.onrender.com                       │
 │   User-Agent: Mozilla/5.0 ...                              │
 └─────────────────────────────────────────────────────────────┘
     │
@@ -528,6 +528,7 @@ flowchart LR
     style Render fill:#4facfe,stroke:#333,color:#000
     style Container fill:#0d3320,stroke:#00e676,color:#fff
     style URL fill:#0d3320,stroke:#00e676,color:#fff
+    User -->|"visit https://<br/>multithreaded-http-server.onrender.com"| URL
 ```
 
 ### Automatic Redeployment Flow

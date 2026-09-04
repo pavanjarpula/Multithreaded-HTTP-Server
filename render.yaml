@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: cpp-http-server
+    runtime: docker
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: THREADS
+        value: 4
+    healthCheckPath: /health

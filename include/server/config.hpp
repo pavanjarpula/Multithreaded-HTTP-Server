@@ -18,6 +18,14 @@ struct Config {
 
     static Config parse(int argc, char* argv[]) {
         Config cfg;
+
+        const char* env_port = std::getenv("PORT");
+        if (env_port) {
+            try {
+                cfg.port = static_cast<uint16_t>(std::stoi(env_port));
+            } catch (...) {}
+        }
+
         for (int i = 1; i < argc; ++i) {
             std::string arg = argv[i];
             if (arg == "--port" && i + 1 < argc) {

@@ -11,8 +11,8 @@
         <div class="nav-brand">C++ HTTP Server</div>
         <div class="nav-links">
             <a href="/" class="active">Home</a>
-            <a href="/dashboard">Dashboard</a>
-            <a href="https://github.com" target="_blank">GitHub</a>
+            <a href="/dashboard.html">Dashboard</a>
+            <a href="https://github.com/pavanjarpula/Multithreaded-HTTP-Server" target="_blank">GitHub</a>
         </div>
     </nav>
 
@@ -25,7 +25,7 @@
                 <span class="status-text">Checking...</span>
             </div>
             <div class="hero-actions">
-                <a href="/dashboard" class="btn btn-primary">Open Dashboard</a>
+                <a href="/dashboard.html" class="btn btn-primary">Open Dashboard</a>
                 <a href="/metrics" class="btn btn-secondary">View Metrics</a>
             </div>
         </section>
@@ -134,15 +134,15 @@ curl -X POST -d "test body" http://localhost:8080/echo</code></pre>
 
     <script>
         fetch('/health')
-            .then(r => r.json())
-            .then(data => {
-                const el = document.getElementById('server-status');
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var el = document.getElementById('server-status');
                 el.querySelector('.status-text').textContent = 'ONLINE';
                 el.classList.add('online');
             })
-            .catch(() => {
-                const el = document.getElementById('server-status');
-                el.querySelector('.status-text').textContent = 'OFFLINE';
+            .catch(function() {
+                var el = document.getElementById('server-status');
+                el.querySelector('.status-text').textContent = 'SERVER NOT RUNNING';
                 el.classList.add('offline');
             });
     </script>

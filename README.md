@@ -8,8 +8,8 @@ A multithreaded HTTP/1.1 server built from scratch using C++17 and low-level TCP
 
 | | URL |
 |---|---|
-| Landing Page | `https://yourusername.github.io/cpp-http-server/` |
-| Dashboard | `https://yourusername.github.io/cpp-http-server/dashboard.html` |
+| Landing Page | `https://pavanjarpula.github.io/Multithreaded-HTTP-Server/` |
+| Dashboard | `https://pavanjarpula.github.io/Multithreaded-HTTP-Server/dashboard.html` |
 | Metrics API | `http://localhost:8080/metrics` (requires running server) |
 
 ---
@@ -39,7 +39,7 @@ cmake --build build
 git init
 git add .
 git commit -m "Initial commit"
-git remote add origin https://github.com/yourusername/cpp-http-server.git
+git remote add origin https://github.com/pavanjarpula/Multithreaded-HTTP-Server.git
 git push -u origin main
 ```
 
@@ -53,7 +53,7 @@ git push -u origin main
 
 Your landing page is now live at:
 ```
-https://yourusername.github.io/cpp-http-server/
+https://pavanjarpula.github.io/Multithreaded-HTTP-Server/
 ```
 
 ### Step 3 — Run C++ Server Locally (for Dashboard Metrics)

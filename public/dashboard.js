@@ -4,8 +4,19 @@
     var MAX_HISTORY = 60;
     var POLL_INTERVAL = 1500;
 
+    // CONFIGURATION:
+    // When running locally (same machine as C++ server), leave as empty string.
+    // When hosted on GitHub Pages, set to your ngrok or VPS URL, e.g.:
+    //   var SERVER_URL = 'https://abc123.ngrok-free.app';
+    var SERVER_URL = '';
+
     var rpsHistory = [];
     var latencyHistory = [];
+
+    function getServerUrl() {
+        var saved = localStorage.getItem('cpp-server-url');
+        return saved || SERVER_URL;
+    }
 
     function formatBytes(bytes) {
         if (bytes === 0) return '0 B';
@@ -117,7 +128,10 @@
     }
 
     function fetchMetrics() {
-        fetch('/metrics')
+        var baseUrl = getServerUrl();
+        var url = baseUrl ? baseUrl + '/metrics' : '/metrics';
+
+        fetch(url)
             .then(function (response) {
                 if (!response.ok) throw new Error('HTTP ' + response.status);
                 return response.json();
@@ -132,6 +146,26 @@
             });
     }
 
+    function saveServerUrl() {
+        var input = document.getElementById('server-url-input');
+        if (input) {
+            localStorage.setItem('cpp-server-url', input.value.trim());
+            rpsHistory = [];
+            latencyHistory = [];
+            fetchMetrics();
+        }
+    }
+
+    function initServerUrlInput() {
+        var input = document.getElementById('server-url-input');
+        if (input) {
+            input.value = getServerUrl();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initServerUrlInput);
     fetchMetrics();
     setInterval(fetchMetrics, POLL_INTERVAL);
+
+    window.saveServerUrl = saveServerUrl;
 })();

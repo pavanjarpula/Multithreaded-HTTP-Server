@@ -2,17 +2,119 @@
 
 A multithreaded HTTP/1.1 server built from scratch using C++17 and low-level TCP sockets.
 
-> Modern web frameworks hide the complexity of networking, HTTP processing, and concurrency. This project explores those underlying mechanisms by implementing a fully functional HTTP server from first principles.
-
 ---
 
 ## Live Demo
 
 | | URL |
 |---|---|
-| Server | `http://your-server:8080` |
-| Dashboard | `http://your-server:8080/dashboard` |
-| Metrics API | `http://your-server:8080/metrics` |
+| Landing Page | `https://yourusername.github.io/cpp-http-server/` |
+| Dashboard | `https://yourusername.github.io/cpp-http-server/dashboard.html` |
+| Metrics API | `http://localhost:8080/metrics` (requires running server) |
+
+---
+
+## Quick Start (Run Locally)
+
+```bash
+# Build
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+
+# Run
+./build/http_server --port 8080 --threads 4
+
+# Open in browser
+# http://localhost:8080/
+# http://localhost:8080/dashboard
+```
+
+---
+
+## Deploy to GitHub Pages (Free Permanent URL)
+
+### Step 1 — Push to GitHub
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin https://github.com/yourusername/cpp-http-server.git
+git push -u origin main
+```
+
+### Step 2 — Enable GitHub Pages
+
+1. Go to your repo on GitHub
+2. **Settings** → **Pages**
+3. Source: **Deploy from a branch**
+4. Branch: **main**, folder: **/public**
+5. Click **Save**
+
+Your landing page is now live at:
+```
+https://yourusername.github.io/cpp-http-server/
+```
+
+### Step 3 — Run C++ Server Locally (for Dashboard Metrics)
+
+The landing page works permanently on GitHub Pages. The dashboard needs the C++ server running to show live metrics.
+
+**Option A — Run locally:**
+```bash
+./build/http_server --port 8080
+```
+Then open `http://localhost:8080/dashboard` — metrics update live.
+
+**Option B — Expose locally via ngrok (shareable link):**
+```powershell
+# Install ngrok from https://ngrok.com/download
+ngrok http 8080
+```
+This gives you a public URL like `https://abc123.ngrok-free.app`.
+
+In the dashboard, enter that URL in the "Server URL" input and click **Connect**.
+
+---
+
+## Deploy to a VPS (24/7, No PC Needed)
+
+### Option A — Docker
+
+```bash
+docker build -t cpp-http-server .
+docker run -d -p 8080:8080 cpp-http-server
+```
+
+### Option B — systemd (Linux)
+
+```bash
+sudo cp deploy/http-server.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl start http-server
+sudo systemctl enable http-server
+```
+
+### Option C — Reverse Proxy for HTTPS
+
+```
+Internet → Nginx (HTTPS) → C++ Server (HTTP localhost:8080)
+```
+
+See [docs/deployment.md](docs/deployment.md) for full instructions.
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | Landing page |
+| GET | `/dashboard` | Live monitoring dashboard |
+| GET | `/health` | Health check (`{"status":"ok"}`) |
+| GET | `/hello` | Hello world |
+| GET | `/metrics` | Server metrics (JSON) |
+| POST | `/echo` | Echo request body |
 
 ---
 
@@ -45,58 +147,6 @@ See [docs/architecture.md](docs/architecture.md) for detailed explanation.
 
 ---
 
-## Quick Start
-
-### Build
-
-```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-```
-
-### Run
-
-```bash
-./build/http_server --port 8080 --threads 4
-```
-
-### Test
-
-```bash
-./build/tests/server_tests
-```
-
----
-
-## API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/` | Landing page |
-| GET | `/dashboard` | Live monitoring dashboard |
-| GET | `/health` | Health check (`{"status":"ok"}`) |
-| GET | `/hello` | Hello world |
-| GET | `/metrics` | Server metrics (JSON) |
-| POST | `/echo` | Echo request body |
-
----
-
-## Dashboard
-
-The dashboard at `/dashboard` displays real-time metrics fetched from `GET /metrics`:
-
-- Request counts (total, success, client errors, server errors)
-- Connection metrics (active, peak)
-- Performance (average latency, requests/sec)
-- Server info (uptime, threads, queue size)
-- Live charts (requests/sec and latency over 60 seconds)
-
-```
-Browser → GET /metrics → C++ Server → Atomic Counters → JSON → Dashboard
-```
-
----
-
 ## Project Structure
 
 ```
@@ -109,44 +159,17 @@ Browser → GET /metrics → C++ Server → Atomic Counters → JSON → Dashboa
 │   ├── metrics.hpp          # Atomic metrics singleton
 │   └── logger.hpp           # Thread-safe logger
 ├── src/                     # Implementation files
-├── public/                  # Static files (dashboard, CSS, JS)
-├── tests/                   # 40 unit tests
+├── public/                  # Static files (served by server AND GitHub Pages)
+│   ├── index.html           # Landing page
+│   ├── dashboard.html       # Monitoring dashboard
+│   ├── dashboard.js         # Dashboard logic
+│   ├── dashboard.css        # Dashboard styling
+│   └── style.css            # Landing page styling
+├── tests/                   # 41 unit tests
 ├── deploy/                  # systemd service file
 ├── Dockerfile               # Docker build
-├── docker-compose.yml       # Docker Compose
 └── docs/                    # Architecture & deployment docs
 ```
-
----
-
-## Deployment
-
-### Docker
-
-```bash
-docker build -t cpp-http-server .
-docker run -d -p 8080:8080 cpp-http-server
-```
-
-### systemd (Linux)
-
-```bash
-sudo cp deploy/http-server.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl start http-server
-sudo systemctl enable http-server
-```
-
-### Commands
-
-```bash
-sudo systemctl status http-server    # Check status
-sudo systemctl restart http-server   # Restart
-sudo systemctl stop http-server      # Stop
-sudo journalctl -u http-server -f    # View logs
-```
-
-See [docs/deployment.md](docs/deployment.md) for full instructions including HTTPS via reverse proxy.
 
 ---
 
@@ -156,18 +179,7 @@ See [docs/deployment.md](docs/deployment.md) for full instructions including HTT
 ./build/tests/server_tests
 ```
 
-40 tests covering: HTTP parser, router, thread pool, blocking queue, static file serving.
-
----
-
-## Limitations
-
-- Educational HTTP server, not a production replacement for Nginx/Apache
-- No HTTP/1.1 keep-alive (Connection: close)
-- No TLS/HTTPS (use a reverse proxy)
-- No chunked transfer encoding
-- Synchronous I/O model
-- No URL query string parsing
+41 tests covering: HTTP parser, router, thread pool, blocking queue, static file serving.
 
 ---
 
@@ -181,7 +193,18 @@ See [docs/deployment.md](docs/deployment.md) for full instructions including HTT
 | Metrics | std::atomic counters |
 | Build | CMake + Ninja |
 | Frontend | HTML, CSS, Vanilla JavaScript |
-| Deployment | Docker, systemd |
+| Deployment | Docker, systemd, GitHub Pages, ngrok |
+
+---
+
+## Limitations
+
+- Educational HTTP server, not a production replacement for Nginx/Apache
+- No HTTP/1.1 keep-alive (Connection: close)
+- No TLS/HTTPS (use a reverse proxy)
+- No chunked transfer encoding
+- Synchronous I/O model
+- No URL query string parsing
 
 ---
 

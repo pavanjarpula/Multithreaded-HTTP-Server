@@ -3,6 +3,7 @@
 #include "server/logger.hpp"
 
 #include <sstream>
+#include <fstream>
 
 namespace server {
 
@@ -42,84 +43,12 @@ HttpResponse Router::handle(const HttpRequest& req) {
 
 void Router::setup_default_routes() {
     add_route("GET", "/dashboard", [](const HttpRequest&) {
-        std::string html = R"(<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - C++ HTTP Server</title>
-    <link rel="stylesheet" href="/dashboard.css">
-</head>
-<body>
-    <div class="dashboard-container">
-        <header>
-            <h1>Live Monitoring Dashboard</h1>
-            <div id="status-badge" class="badge offline">OFFLINE</div>
-        </header>
-        <div class="metrics-grid">
-            <div class="metric-card">
-                <div class="metric-label">Total Requests</div>
-                <div class="metric-value" id="total-requests">0</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Successful</div>
-                <div class="metric-value success" id="successful-requests">0</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Client Errors</div>
-                <div class="metric-value warning" id="client-errors">0</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Server Errors</div>
-                <div class="metric-value danger" id="server-errors">0</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Active Connections</div>
-                <div class="metric-value" id="active-connections">0</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Peak Connections</div>
-                <div class="metric-value" id="peak-connections">0</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Avg Latency</div>
-                <div class="metric-value" id="avg-latency">0 ms</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Requests/sec</div>
-                <div class="metric-value" id="rps">0</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Bytes Sent</div>
-                <div class="metric-value" id="bytes-sent">0 B</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Uptime</div>
-                <div class="metric-value" id="uptime">0s</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Worker Threads</div>
-                <div class="metric-value" id="thread-count">0</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Queue Size</div>
-                <div class="metric-value" id="queue-size">0</div>
-            </div>
-        </div>
-        <div class="charts-section">
-            <div class="chart-container">
-                <h3>Requests Per Second</h3>
-                <canvas id="rps-chart" width="600" height="200"></canvas>
-            </div>
-            <div class="chart-container">
-                <h3>Average Latency (ms)</h3>
-                <canvas id="latency-chart" width="600" height="200"></canvas>
-            </div>
-        </div>
-    </div>
-    <script src="/dashboard.js"></script>
-</body>
-</html>)";
+        std::ifstream file("public/dashboard.html");
+        if (!file.is_open()) {
+            return HttpResponse::not_found("Dashboard not found");
+        }
+        std::string html((std::istreambuf_iterator<char>(file)),
+                          std::istreambuf_iterator<char>());
         return HttpResponse::ok(html, "text/html");
     });
 

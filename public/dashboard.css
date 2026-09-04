@@ -134,3 +134,54 @@ canvas {
         text-align: center;
     }
 }
+
+.server-config {
+    margin-top: 20px;
+    background: #161625;
+    border: 1px solid #2a2a3e;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.server-config label {
+    font-size: 12px;
+    color: #8888aa;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.config-row {
+    display: flex;
+    gap: 8px;
+}
+
+.config-row input {
+    flex: 1;
+    padding: 8px 12px;
+    background: #0f0f1a;
+    border: 1px solid #2a2a3e;
+    border-radius: 4px;
+    color: #e0e0e0;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 13px;
+    outline: none;
+}
+
+.config-row input:focus {
+    border-color: #4facfe;
+}
+
+.config-row button {
+    padding: 8px 16px;
+    background: #4facfe;
+    color: #0f0f1a;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.config-row button:hover {
+    background: #3d94e0;
+}

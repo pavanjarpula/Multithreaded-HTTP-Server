@@ -15,7 +15,8 @@ public:
     using Handler = std::function<HttpResponse(const HttpRequest&)>;
 
     explicit Router(std::string document_root = "public")
-        : static_handler_(std::move(document_root)) {}
+        : document_root_(std::move(document_root))
+        , static_handler_(document_root_) {}
 
     void add_route(const std::string& method, const std::string& path, Handler handler);
 
@@ -24,6 +25,7 @@ public:
     void setup_default_routes();
 
 private:
+    std::string document_root_;
     std::unordered_map<std::string,
         std::unordered_map<std::string, Handler>> routes_;
     StaticFileHandler static_handler_;

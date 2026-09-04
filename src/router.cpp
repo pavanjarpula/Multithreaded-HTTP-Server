@@ -42,8 +42,8 @@ HttpResponse Router::handle(const HttpRequest& req) {
 }
 
 void Router::setup_default_routes() {
-    add_route("GET", "/dashboard", [](const HttpRequest&) {
-        std::ifstream file("public/dashboard.html");
+    add_route("GET", "/dashboard", [this](const HttpRequest&) {
+        std::ifstream file(document_root_ + "/dashboard.html");
         if (!file.is_open()) {
             return HttpResponse::not_found("Dashboard not found");
         }

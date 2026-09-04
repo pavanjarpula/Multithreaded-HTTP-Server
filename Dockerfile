@@ -19,11 +19,11 @@ FROM ubuntu:22.04
 WORKDIR /app
 
 COPY --from=builder /app/build/http_server .
-COPY public/ public/
+COPY public/ /app/public/
 
 EXPOSE 8080
 
 ENV PORT=8080
 ENV THREADS=4
 
-CMD ./http_server --port $PORT --threads $THREADS
+CMD ./http_server --port $PORT --threads $THREADS --root /app/public

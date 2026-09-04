@@ -14,6 +14,10 @@
 #include <cstdio>
 #include <iostream>
 #include <memory>
+#include <csignal>
+#ifndef _WIN32
+#include <signal.h>
+#endif
 
 #ifdef _WIN32
 static bool initialize_winsock() {

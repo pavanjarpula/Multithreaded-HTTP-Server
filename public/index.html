@@ -11,7 +11,9 @@
         <div class="nav-brand">C++ HTTP Server</div>
         <div class="nav-links">
             <a href="/" class="active">Home</a>
-            <a href="/dashboard.html">Dashboard</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/playground">Playground</a>
+            <a href="/lab">Lab</a>
             <a href="https://github.com/pavanjarpula/Multithreaded-HTTP-Server" target="_blank">GitHub</a>
         </div>
     </nav>
@@ -25,8 +27,10 @@
                 <span class="status-text">Checking...</span>
             </div>
             <div class="hero-actions">
-                <a href="/dashboard.html" class="btn btn-primary">Open Dashboard</a>
-                <a href="/metrics" class="btn btn-secondary">View Metrics</a>
+                <a href="/dashboard" class="btn btn-primary">Dashboard</a>
+                <a href="/playground" class="btn btn-primary">Playground</a>
+                <a href="/lab" class="btn btn-primary">Concurrency Lab</a>
+                <a href="/metrics" class="btn btn-secondary">Metrics JSON</a>
             </div>
         </section>
 
@@ -70,15 +74,15 @@
                 </div>
                 <div class="tech-item">
                     <h3>Thread Pool</h3>
-                    <p>Fixed-size worker threads with blocking task queue</p>
+                    <p>Fixed-size worker threads with bounded blocking task queue</p>
                 </div>
                 <div class="tech-item">
-                    <h3>Synchronization</h3>
-                    <p>mutex, condition_variable, atomic counters for lock-free metrics</p>
+                    <h3>Backpressure</h3>
+                    <p>Bounded queue with HTTP 503 Service Unavailable on overload</p>
                 </div>
                 <div class="tech-item">
                     <h3>Live Monitoring</h3>
-                    <p>Real-time metrics dashboard with performance charts</p>
+                    <p>Real-time metrics dashboard with RPS, latency charts, worker status</p>
                 </div>
             </div>
         </section>
@@ -95,6 +99,21 @@
                     <span class="method get">GET</span>
                     <span class="path">/dashboard</span>
                     <span class="desc">Live monitoring dashboard</span>
+                </div>
+                <div class="endpoint">
+                    <span class="method get">GET</span>
+                    <span class="path">/playground</span>
+                    <span class="desc">Interactive HTTP client</span>
+                </div>
+                <div class="endpoint">
+                    <span class="method get">GET</span>
+                    <span class="path">/lab</span>
+                    <span class="desc">Concurrency lab with live visualization</span>
+                </div>
+                <div class="endpoint">
+                    <span class="method get">GET</span>
+                    <span class="path">/work</span>
+                    <span class="desc">CPU workload endpoint (backpressure demo)</span>
                 </div>
                 <div class="endpoint">
                     <span class="method get">GET</span>

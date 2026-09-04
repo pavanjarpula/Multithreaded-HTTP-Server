@@ -4,20 +4,24 @@
 #include <mutex>
 #include <condition_variable>
 #include <optional>
+#include <cstddef>
 
 namespace server {
 
 template <typename T>
-class BlockingQueue {
+class BoundedBlockingQueue {
 public:
-    BlockingQueue() {}
+    explicit BoundedBlockingQueue(std::size_t capacity = 50)
+        : capacity_(capacity) {}
 
-    void push(T item) {
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            queue_.push(std::move(item));
+    bool push(T item) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (queue_.size() >= capacity_) {
+            return false;
         }
+        queue_.push(std::move(item));
         cv_.notify_one();
+        return true;
     }
 
     std::optional<T> wait_and_pop() {
@@ -32,6 +36,7 @@ public:
 
         T item = std::move(queue_.front());
         queue_.pop();
+        cv_.notify_one();
         return item;
     }
 
@@ -41,6 +46,7 @@ public:
 
         T item = std::move(queue_.front());
         queue_.pop();
+        cv_.notify_one();
         return item;
     }
 
@@ -62,10 +68,20 @@ public:
         return queue_.size();
     }
 
+    std::size_t capacity() const {
+        return capacity_;
+    }
+
+    bool is_full() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return queue_.size() >= capacity_;
+    }
+
 private:
     mutable std::mutex mutex_;
     std::condition_variable cv_;
     std::queue<T> queue_;
+    std::size_t capacity_;
     bool shutdown_ = false;
 };
 

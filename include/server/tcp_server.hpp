@@ -24,7 +24,10 @@ public:
     void stop();
 
     std::size_t queue_size() const { return pool_ ? pool_->queue_size() : 0; }
+    std::size_t queue_capacity() const { return pool_ ? pool_->queue_capacity() : 0; }
     std::size_t thread_count() const { return pool_ ? pool_->thread_count() : 0; }
+    std::size_t active_workers() const { return pool_ ? pool_->active_workers() : 0; }
+    bool is_queue_full() const { return pool_ ? pool_->is_queue_full() : false; }
 
     TcpServer(const TcpServer&) = delete;
     TcpServer& operator=(const TcpServer&) = delete;

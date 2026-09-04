@@ -51,8 +51,16 @@ public:
         queue_size_.store(static_cast<std::uint64_t>(size), std::memory_order_relaxed);
     }
 
+    void set_queue_capacity(std::size_t cap) {
+        queue_capacity_.store(static_cast<std::uint64_t>(cap), std::memory_order_relaxed);
+    }
+
     void set_thread_count(std::size_t count) {
         thread_count_.store(static_cast<std::uint64_t>(count), std::memory_order_relaxed);
+    }
+
+    void set_active_workers(std::size_t count) {
+        active_workers_.store(static_cast<std::uint64_t>(count), std::memory_order_relaxed);
     }
 
     std::string to_json() const {
@@ -72,6 +80,10 @@ public:
             }
         }
 
+        std::uint64_t tc = thread_count_.load();
+        std::uint64_t aw = active_workers_.load();
+        std::uint64_t iw = tc > aw ? tc - aw : 0;
+
         std::ostringstream oss;
         oss << "{\n"
             << "  \"total_requests\": " << total_requests_.load() << ",\n"
@@ -84,8 +96,11 @@ public:
             << "  \"average_latency_ms\": " << avg_latency << ",\n"
             << "  \"requests_per_second\": " << std::fixed << std::setprecision(2) << requests_per_sec << ",\n"
             << "  \"uptime_seconds\": " << uptime_secs << ",\n"
-            << "  \"thread_count\": " << thread_count_.load() << ",\n"
-            << "  \"queue_size\": " << queue_size_.load() << "\n"
+            << "  \"worker_threads\": " << tc << ",\n"
+            << "  \"active_workers\": " << aw << ",\n"
+            << "  \"idle_workers\": " << iw << ",\n"
+            << "  \"queue_size\": " << queue_size_.load() << ",\n"
+            << "  \"queue_capacity\": " << queue_capacity_.load() << "\n"
             << "}";
         return oss.str();
     }
@@ -104,7 +119,9 @@ private:
         , peak_connections_(0)
         , total_bytes_sent_(0)
         , queue_size_(0)
+        , queue_capacity_(0)
         , thread_count_(0)
+        , active_workers_(0)
         , total_latency_ms_(0.0)
         , latency_count_(0) {
     }
@@ -118,9 +135,10 @@ private:
     std::atomic<std::uint64_t> peak_connections_;
     std::atomic<std::uint64_t> total_bytes_sent_;
     std::atomic<std::uint64_t> queue_size_;
+    std::atomic<std::uint64_t> queue_capacity_;
     std::atomic<std::uint64_t> thread_count_;
+    std::atomic<std::uint64_t> active_workers_;
 
-    // Latency tracked with mutex (std::atomic<double> lacks fetch_add in C++17)
     mutable std::mutex latency_mutex_;
     double total_latency_ms_;
     std::uint64_t latency_count_;

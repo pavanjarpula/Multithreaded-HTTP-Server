@@ -118,8 +118,10 @@ TEST(router_get_metrics) {
     ASSERT_EQ(static_cast<int>(resp.status_code()), 200);
     std::string serialized = resp.serialize();
     ASSERT_CONTAINS(serialized, "total_requests");
-    ASSERT_CONTAINS(serialized, "thread_count");
+    ASSERT_CONTAINS(serialized, "worker_threads");
     ASSERT_CONTAINS(serialized, "queue_size");
+    ASSERT_CONTAINS(serialized, "queue_capacity");
+    ASSERT_CONTAINS(serialized, "active_workers");
     ASSERT_CONTAINS(serialized, "requests_per_second");
 }
 

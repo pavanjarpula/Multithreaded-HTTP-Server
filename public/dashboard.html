@@ -10,6 +10,11 @@
     <div class="dashboard-container">
         <header>
             <h1>Live Monitoring Dashboard</h1>
+            <div class="header-links">
+                <a href="/" style="color:var(--muted);text-decoration:none;font-size:0.8rem;">Home</a>
+                <a href="/playground" style="color:var(--muted);text-decoration:none;font-size:0.8rem;margin-left:1rem;">Playground</a>
+                <a href="/lab" style="color:var(--muted);text-decoration:none;font-size:0.8rem;margin-left:1rem;">Lab</a>
+            </div>
             <div id="status-badge" class="badge offline">OFFLINE</div>
         </header>
         <div class="metrics-grid">
@@ -58,8 +63,24 @@
                 <div class="metric-value" id="thread-count">0</div>
             </div>
             <div class="metric-card">
+                <div class="metric-label">Active Workers</div>
+                <div class="metric-value success" id="active-workers">0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Idle Workers</div>
+                <div class="metric-value" id="idle-workers">0</div>
+            </div>
+            <div class="metric-card">
                 <div class="metric-label">Queue Size</div>
                 <div class="metric-value" id="queue-size">0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Queue Capacity</div>
+                <div class="metric-value" id="queue-capacity">50</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Worker Utilization</div>
+                <div class="metric-value" id="worker-util">0%</div>
             </div>
         </div>
         <div class="charts-section">

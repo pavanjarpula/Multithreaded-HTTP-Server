@@ -33,8 +33,14 @@
         document.getElementById('rps').textContent = data.requests_per_second.toFixed(2);
         document.getElementById('bytes-sent').textContent = formatBytes(data.total_bytes_sent);
         document.getElementById('uptime').textContent = formatUptime(data.uptime_seconds);
-        document.getElementById('thread-count').textContent = data.thread_count;
+        document.getElementById('thread-count').textContent = data.worker_threads;
+        document.getElementById('active-workers').textContent = data.active_workers;
+        document.getElementById('idle-workers').textContent = data.idle_workers;
         document.getElementById('queue-size').textContent = data.queue_size;
+        document.getElementById('queue-capacity').textContent = data.queue_capacity;
+
+        var util = data.worker_threads > 0 ? ((data.active_workers / data.worker_threads) * 100).toFixed(0) : 0;
+        document.getElementById('worker-util').textContent = util + '%';
 
         var badge = document.getElementById('status-badge');
         badge.textContent = 'ONLINE';

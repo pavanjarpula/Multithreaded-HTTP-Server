@@ -9,7 +9,9 @@
 | | Link |
 |---|---|
 | **Landing Page** | [Open Live Server](https://multithreaded-http-server.onrender.com/) |
-| **Dashboard** | [Open Live Dashboard](https://multithreaded-http-server.onrender.com/dashboard.html) |
+| **Dashboard** | [Open Live Dashboard](https://multithreaded-http-server.onrender.com/dashboard) |
+| **Playground** | [Open Playground](https://multithreaded-http-server.onrender.com/playground) |
+| **Concurrency Lab** | [Open Lab](https://multithreaded-http-server.onrender.com/lab) |
 | **Metrics API** | [/metrics](https://multithreaded-http-server.onrender.com/metrics) |
 | **Health Check** | [/health](https://multithreaded-http-server.onrender.com/health) |
 
@@ -62,13 +64,13 @@ Modern web frameworks like Express, Flask, and Spring hide the complexity of net
 
 ```mermaid
 flowchart TD
-    User([🌐 User Browser])
+    User([User Browser])
     
     subgraph Server["C++ HTTP Server (Docker Container)"]
         direction TB
         TCP["TCP Socket<br/>socket() / bind() / listen()"]
         Accept["accept() Loop<br/>(Main Thread)"]
-        Queue["BlockingQueue<br/>(Thread-Safe)"]
+        Queue["BoundedBlockingQueue<br/>(Capacity: 50, HTTP 503 on full)"]
         Pool["ThreadPool<br/>(N Worker Threads)"]
         Parser["HTTP Parser<br/>Parse Request"]
         Router["Router<br/>Match Path + Method"]
@@ -80,12 +82,16 @@ flowchart TD
     
     Router -->|GET /| Landing["Landing Page<br/>HTML + CSS"]
     Router -->|GET /dashboard| Dashboard["Dashboard<br/>HTML + JS + CSS"]
+    Router -->|GET /playground| Playground["Playground<br/>Interactive HTTP Client"]
+    Router -->|GET /lab| Lab["Concurrency Lab<br/>Visual Request Flow"]
+    Router -->|GET /work| Work["/work Endpoint<br/>CPU Workload + Backpressure"]
     Router -->|GET /metrics| Metrics["Metrics API<br/>JSON Response"]
     Router -->|GET /health| Health["Health Check<br/>JSON"]
     Router -->|GET /hello, /echo| API["API Routes"]
     Router -->|GET /*| Static["Static Files<br/>CSS / JS / Images"]
     
     Dashboard -->|"fetch('/metrics')<br/>every 1.5 seconds"| Metrics
+    Lab -->|"fetch('/metrics')<br/>every 0.5 seconds"| Metrics
     
     style Server fill:#1a1a2e,stroke:#4facfe,color:#e0e0e0
     style User fill:#0d3320,stroke:#00e676,color:#e0e0e0
@@ -229,17 +235,17 @@ Memory: ~8GB for thread stacks
 Result: CRASH or extreme slowness
 ```
 
-### The Solution: Fixed-Size Thread Pool
+### The Solution: Fixed-Size Thread Pool with Bounded Queue
 
 ```
-With thread pool (GOOD):
+With thread pool + bounded queue (GOOD):
 
 10,000 concurrent clients
         │
         ▼
     ┌───────────────────┐
-    │  BlockingQueue    │ ← Stores pending tasks
-    │  (unbounded)      │
+    │ BoundedQueue      │ ← Capacity: 50 tasks
+    │ (capacity: 50)    │   HTTP 503 when full!
     └─────────┬─────────┘
               │
     ┌─────────┼─────────┐
@@ -251,8 +257,11 @@ With thread pool (GOOD):
      Process requests one at a time
      Each worker handles ~1250 clients sequentially
      
+If queue full: HTTP 503 "Service Unavailable"
+Retry-After: 5 seconds
+
 Memory: ~8MB for thread stacks
-Result: STABLE, PREDICTABLE
+Result: STABLE, PREDICTABLE, GRACEFUL DEGRADATION
 ```
 
 ### Thread Pool Internals
@@ -262,13 +271,14 @@ Result: STABLE, PREDICTABLE
 │                     THREAD POOL                              │
 │                                                              │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │                 BlockingQueue                         │   │
+│  │           BoundedBlockingQueue (capacity: 50)         │   │
 │  │                                                       │   │
 │  │   std::queue<std::function<void()>>                  │   │
 │  │   std::mutex  (protects the queue)                   │   │
 │  │   std::condition_variable  (sleep/wake workers)      │   │
+│  │   std::size_t capacity_  (max queue size)            │   │
 │  │                                                       │   │
-│  │   push(task)  → notify_one()                         │   │
+│  │   push(task)  → returns false if full (backpressure) │   │
 │  │   wait_and_pop() → blocks until item or shutdown     │   │
 │  └──────────────────────────────────────────────────────┘   │
 │                          │                                   │
@@ -280,7 +290,9 @@ Result: STABLE, PREDICTABLE
 │   │ while(1){      │ while(1){      │ while(1){           │
 │   │   task =       │   task =       │   task =             │
 │   │   queue.pop()  │   queue.pop()  │   queue.pop()        │
+│   │   active++     │   active++     │   active++           │
 │   │   task()       │   task()       │   task()             │
+│   │   active--     │   active--     │   active--           │
 │   │ }              │ }              │ }                    │
 │   │ (sleeps when   │ (sleeps when   │ (sleeps when         │
 │   │  queue empty)  │  queue empty)  │  queue empty)        │
@@ -290,6 +302,7 @@ Result: STABLE, PREDICTABLE
 │  - mutex: protects queue access                             │
 │  - condition_variable: workers sleep when idle               │
 │  - atomic<bool> stopped_: shutdown signal                    │
+│  - atomic<size_t> active_workers_: currently processing     │
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -299,7 +312,8 @@ Result: STABLE, PREDICTABLE
 | Design Choice | Reason | Trade-off |
 |--------------|--------|-----------|
 | Fixed thread pool | Bounds resource usage, O(1) thread creation | Workers block on slow I/O |
-| Blocking queue | Workers sleep when idle (zero CPU) | Synchronization overhead |
+| Bounded blocking queue | Prevents OOM, enables backpressure (503) | Must tune capacity to workload |
+| Active worker tracking | Real-time utilization metrics | One atomic increment/decrement per request |
 | Condition variable | Efficient sleep/wake (no busy-wait) | Spurious wakeups handled |
 | `std::atomic` metrics | Lock-free counters on hot path | Can't use for complex types |
 | `std::mutex` for latency | `atomic<double>` lacks `fetch_add` | Small contention window |
@@ -361,15 +375,18 @@ Result: STABLE, PREDICTABLE
 | `total_requests` | counter | Total requests since startup | `fetch_add(1)` on each request |
 | `successful_requests` | counter | 2xx responses returned | `fetch_add(1)` on success |
 | `client_errors` | counter | 4xx responses returned | `fetch_add(1)` on client error |
-| `server_errors` | counter | 5xx responses returned | `fetch_add(1)` on server error |
+| `server_errors` | counter | 5xx responses returned (includes 503 backpressure) | `fetch_add(1)` on server error |
 | `active_connections` | gauge | Currently open connections | `fetch_add(1)` on accept, `fetch_sub(1)` on close |
 | `peak_connections` | gauge | Highest concurrent connections | CAS loop: if current > peak, update |
 | `total_bytes_sent` | counter | Total response bytes transmitted | `fetch_add(bytes)` after each send |
 | `average_latency_ms` | gauge | Mean request processing time | `mutex` protected sum/count |
 | `uptime_seconds` | gauge | Time since server started | `steady_clock::now() - start_time` |
 | `requests_per_second` | computed | Total requests / uptime | Computed in `to_json()` |
-| `thread_count` | info | Configured worker thread count | Set once at startup |
+| `worker_threads` | info | Configured worker thread count | Set once at startup |
+| `active_workers` | gauge | Workers currently processing requests | Atomic counter, incremented on task pickup |
+| `idle_workers` | gauge | Workers waiting for tasks | Computed: worker_threads - active_workers |
 | `queue_size` | gauge | Pending tasks in queue | Updated on each request |
+| `queue_capacity` | info | Maximum queue size (backpressure threshold) | Set once at startup |
 
 ### Example /metrics Response
 
@@ -385,8 +402,11 @@ Result: STABLE, PREDICTABLE
   "average_latency_ms": 2.4,
   "requests_per_second": 45.20,
   "uptime_seconds": 4823,
-  "thread_count": 4,
-  "queue_size": 0
+  "worker_threads": 4,
+  "active_workers": 2,
+  "idle_workers": 2,
+  "queue_size": 0,
+  "queue_capacity": 50
 }
 ```
 
@@ -394,68 +414,13 @@ Result: STABLE, PREDICTABLE
 
 ## Live Dashboard — Real-Time Monitoring
 
-The dashboard at `/dashboard.html` visualizes all metrics in real-time.
-
-### How the Dashboard Works
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    BROWSER                                  │
-│                                                             │
-│  dashboard.html                                             │
-│       │                                                     │
-│       ├── dashboard.css (dark theme, grid layout)           │
-│       │                                                     │
-│       └── dashboard.js                                      │
-│             │                                               │
-│             ├── fetch('/metrics')  ← every 1.5 seconds     │
-│             │                                               │
-│             ├── Parse JSON response                         │
-│             │                                               │
-│             ├── Update 12 metric cards in DOM              │
-│             │   ├── Total Requests                          │
-│             │   ├── Successful Requests                     │
-│             │   ├── Client Errors                           │
-│             │   ├── Server Errors                           │
-│             │   ├── Active Connections                      │
-│             │   ├── Peak Connections                        │
-│             │   ├── Average Latency                         │
-│             │   ├── Requests/Second                         │
-│             │   ├── Bytes Sent                              │
-│             │   ├── Uptime                                  │
-│             │   ├── Worker Threads                          │
-│             │   └── Queue Size                              │
-│             │                                               │
-│             ├── Store last 60 data points in memory        │
-│             │                                               │
-│             └── Draw Canvas charts                          │
-│                 ├── Requests Per Second (line chart)        │
-│                 └── Average Latency (line chart)            │
-│                                                             │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       │ HTTP GET /metrics
-                       │ (same-origin, no CORS)
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    C++ SERVER                               │
-│                                                             │
-│  GET /dashboard.html → reads file → returns HTML           │
-│  GET /dashboard.css  → reads file → returns CSS            │
-│  GET /dashboard.js   → reads file → returns JS             │
-│  GET /metrics        → to_json() → returns JSON            │
-│                                                             │
-│  All served by the same C++ HTTP server                    │
-│  No separate frontend hosting needed                       │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+The dashboard at `/dashboard` visualizes all metrics in real-time, including worker utilization and queue status.
 
 ### Dashboard Preview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Live Monitoring Dashboard                         ● ONLINE        │
+│  Live Monitoring Dashboard                    [Home] [Playground]  │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌────────────┐ │
@@ -470,19 +435,23 @@ The dashboard at `/dashboard.html` visualizes all metrics in real-time.
 │  │      3       │ │     12       │ │  2.40 ms     │ │  45.20     │ │
 │  └──────────────┘ └──────────────┘ └──────────────┘ └────────────┘ │
 │                                                                     │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌────────────┐ │
+│  │ WORKER       │ │ ACTIVE       │ │ IDLE         │ │ WORKER     │ │
+│  │ THREADS      │ │ WORKERS      │ │ WORKERS      │ │ UTIL       │ │
+│  │     4        │ │     2        │ │     2        │ │    50%     │ │
+│  └──────────────┘ └──────────────┘ └──────────────┘ └────────────┘ │
+│                                                                     │
+│  ┌──────────────┐ ┌──────────────┐                                  │
+│  │ QUEUE SIZE   │ │ QUEUE        │                                  │
+│  │      0       │ │ CAPACITY     │                                  │
+│  │              │ │     50       │                                  │
+│  └──────────────┘ └──────────────┘                                  │
+│                                                                     │
 │  ┌────────────────────────────┐ ┌────────────────────────────────┐ │
 │  │  Requests Per Second       │ │  Average Latency (ms)          │ │
-│  │                            │ │                                │ │
 │  │  ▁▂▃▅▆▅▄▃▂▁▂▃▅▆▅▄▃▂▁    │ │  ▁▁▂▂▁▁▂▃▃▂▂▁▁▂▂▁▁▂▃▃▂▂    │ │
-│  │                            │ │                                │ │
 │  │  (last 60 seconds)         │ │  (last 60 seconds)             │ │
 │  └────────────────────────────┘ └────────────────────────────────┘ │
-│                                                                     │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌────────────┐ │
-│  │ BYTES        │ │ UPTIME       │ │ WORKER       │ │ QUEUE      │ │
-│  │ SENT         │ │              │ │ THREADS      │ │ SIZE       │ │
-│  │  1.2 MB      │ │  2h 14m      │ │     4        │ │     0      │ │
-│  └──────────────┘ └──────────────┘ └──────────────┘ └────────────┘ │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -494,10 +463,15 @@ The dashboard at `/dashboard.html` visualizes all metrics in real-time.
 |------------|---------------|--------|
 | TCP Networking | Raw sockets: `socket() / bind() / listen() / accept() / recv() / send()` | Done |
 | HTTP/1.1 Protocol | Request line, headers, Content-Length body parsing | Done |
-| Concurrency | Fixed-size thread pool with blocking task queue | Done |
+| Concurrency | Fixed-size thread pool with bounded blocking task queue | Done |
+| Backpressure | Bounded queue with HTTP 503 Service Unavailable when full | Done |
+| Active Worker Tracking | Atomic counter for real-time worker utilization metrics | Done |
 | Synchronization | `mutex` + `condition_variable` for queue, `atomic` for metrics | Done |
 | Routing | Path/method matching, 404/405 with Allow headers | Done |
 | Static File Serving | MIME detection, directory traversal prevention, path normalization | Done |
+| CPU Workload Endpoint | `/work?delay=N&body=N` for concurrency demos and backpressure testing | Done |
+| Interactive Playground | `/playground` - Send requests, inspect responses, request history | Done |
+| Concurrency Lab | `/lab` - Visualize thread pool, queue, worker status in real-time | Done |
 | Thread-Safe Logging | Mutex-protected structured logs with timestamp, level, thread ID | Done |
 | Atomic Metrics | Lock-free counters for requests, bytes, connections | Done |
 | Live Dashboard | Browser-based monitoring with Canvas charts, auto-refresh | Done |
@@ -506,7 +480,7 @@ The dashboard at `/dashboard.html` visualizes all metrics in real-time.
 | Cross-Platform | Windows (Winsock2) and Linux (POSIX sockets) | Done |
 | Graceful Shutdown | SIGINT/SIGTERM handling, thread pool drain, socket cleanup | Done |
 | Health Endpoint | `/health` returns `{"status":"ok"}` for uptime monitoring | Done |
-| Environment Config | `PORT` env variable for deployment platforms | Done |
+| Environment Config | `PORT`, `QUEUE_CAPACITY` env variables for deployment platforms | Done |
 
 ---
 
@@ -597,9 +571,9 @@ After initial setup, every update is just:
 ```
 ├── src/                              # Server implementation
 │   ├── main.cpp                      # Entry point, signal handling, Winsock init
-│   ├── tcp_server.cpp                # Socket bind/listen/accept, request handling
+│   ├── tcp_server.cpp                # Socket bind/listen/accept, backpressure handling
 │   ├── http_parser.cpp               # HTTP/1.1 request parser
-│   ├── router.cpp                    # Route definitions, dispatch logic
+│   ├── router.cpp                    # Route definitions, /work, /playground, /lab
 │   ├── static_file_handler.cpp       # File serving, MIME types, path security
 │   ├── http_response.cpp             # (inline in header)
 │   ├── logger.cpp                    # (inline in header)
@@ -608,13 +582,13 @@ After initial setup, every update is just:
 ├── include/server/                   # Header files
 │   ├── config.hpp                    # Configuration + CLI + env parsing
 │   ├── tcp_server.hpp                # TcpServer class
-│   ├── thread_pool.hpp               # Fixed-size thread pool
-│   ├── blocking_queue.hpp            # Thread-safe blocking queue
+│   ├── thread_pool.hpp               # Fixed-size thread pool with worker tracking
+│   ├── blocking_queue.hpp            # Bounded thread-safe blocking queue
 │   ├── http_parser.hpp               # HTTP parser declaration
 │   ├── http_request.hpp              # HttpRequest struct, HttpMethod enum
 │   ├── http_response.hpp             # HttpResponse builder, StatusCode enum
 │   ├── router.hpp                    # Router class
-│   ├── metrics.hpp                   # Atomic metrics singleton
+│   ├── metrics.hpp                   # Atomic metrics singleton (15 fields)
 │   ├── logger.hpp                    # Thread-safe logger singleton
 │   └── socket_compat.hpp             # Cross-platform socket abstraction
 │
@@ -623,6 +597,8 @@ After initial setup, every update is just:
 │   ├── dashboard.html                # Live monitoring dashboard
 │   ├── dashboard.js                  # Metrics fetching + Canvas charts
 │   ├── dashboard.css                 # Dashboard styling
+│   ├── playground.html               # Interactive HTTP client
+│   ├── lab.html                      # Concurrency lab with visualization
 │   └── style.css                     # Landing page styling
 │
 ├── tests/                            # 41 unit tests
@@ -638,7 +614,8 @@ After initial setup, every update is just:
 │
 ├── docs/
 │   ├── architecture.md               # Detailed architecture docs
-│   └── deployment.md                 # Deployment guide
+│   ├── deployment.md                 # Deployment guide
+│   └── interview-guide.md            # Interview prep with Q&A
 │
 ├── Dockerfile                        # Multi-stage Docker build
 ├── docker-compose.yml                # Docker Compose config
@@ -659,11 +636,13 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
 # Run
-./build/http_server --port 8080
+./build/http_server --port 8080 --threads 4 --capacity 50
 
 # Open in browser
-# http://localhost:8080/           ← Landing page
-# http://localhost:8080/dashboard.html  ← Live dashboard
+# http://localhost:8080/           <- Landing page
+# http://localhost:8080/dashboard  <- Live dashboard
+# http://localhost:8080/playground <- Interactive HTTP client
+# http://localhost:8080/lab        <- Concurrency lab
 ```
 
 ### Run with Docker
@@ -680,12 +659,21 @@ docker run -p 8080:8080 cpp-http-server
 # Expected: 41/41 tests passed
 ```
 
+### Test Backpressure
+
+```bash
+# Fire 200 concurrent requests to /work (delay 500ms each)
+# With queue capacity 50, expect ~150 HTTP 503 responses
+ab -n 200 -c 200 "http://localhost:8080/work?delay=500"
+```
+
 ### Command-Line Options
 
 | Flag | Default | Env Variable | Description |
 |------|---------|-------------|-------------|
 | `--port PORT` | 8080 | `PORT` | Server listen port |
 | `--threads N` | hardware concurrency | `THREADS` | Worker thread count |
+| `--capacity N` | 50 | `QUEUE_CAPACITY` | Queue capacity (backpressure threshold) |
 | `--root PATH` | `public` | — | Static files directory |
 
 ---
@@ -695,10 +683,13 @@ docker run -p 8080:8080 cpp-http-server
 | Method | Path | Description | Response |
 |--------|------|-------------|----------|
 | GET | `/` | Landing page | HTML |
-| GET | `/dashboard.html` | Live monitoring dashboard | HTML |
+| GET | `/dashboard` | Live monitoring dashboard | HTML |
+| GET | `/playground` | Interactive HTTP client | HTML |
+| GET | `/lab` | Concurrency lab with visualization | HTML |
+| GET | `/work` | CPU workload endpoint (configurable delay) | JSON with timing |
 | GET | `/health` | Health check | `{"status":"ok"}` |
 | GET | `/hello` | Hello world | `Hello, World!` |
-| GET | `/metrics` | Server metrics | JSON (see above) |
+| GET | `/metrics` | Server metrics (all fields) | JSON |
 | POST | `/echo` | Echo request body | Plain text |
 | HEAD | `/hello` | HEAD for hello | Empty body |
 | HEAD | `/health` | HEAD for health | Empty body |
@@ -734,6 +725,16 @@ docker run -p 8080:8080 cpp-http-server
 | Static Files | 13 | File serving, MIME types, directory traversal prevention |
 | **Total** | **41** | **All passing** |
 
+### Load Testing Backpressure
+
+```bash
+# Quick test: queue capacity 10, 50 concurrent requests
+ab -n 50 -c 50 "http://localhost:8080/work?delay=200"
+
+# Watch for 503 responses in the output:
+# Non-2xx responses: ~40 (these are 503 Service Unavailable)
+```
+
 ---
 
 ## Why This Project?
@@ -751,11 +752,19 @@ HTTP Protocol Handling
         +
 Multithreading & Concurrency
         +
+Bounded Queues & Backpressure (HTTP 503)
+        +
 Synchronization (mutex, condvar, atomics)
+        +
+Real-Time Worker Utilization Tracking
         +
 Software Architecture
         +
 Real-Time Metrics & Monitoring
+        +
+Interactive HTTP Client (Playground)
+        +
+Concurrency Visualization (Lab)
         +
 Docker Containerization
         +

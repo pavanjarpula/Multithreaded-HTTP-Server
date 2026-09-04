@@ -13,7 +13,8 @@ enum class StatusCode : int {
     METHOD_NOT_ALLOWED     = 405,
     PAYLOAD_TOO_LARGE      = 413,
     INTERNAL_ERROR         = 500,
-    NOT_IMPLEMENTED        = 501
+    NOT_IMPLEMENTED        = 501,
+    SERVICE_UNAVAILABLE    = 503
 };
 
 inline const char* reason_phrase(StatusCode code) {
@@ -26,6 +27,7 @@ inline const char* reason_phrase(StatusCode code) {
         case StatusCode::PAYLOAD_TOO_LARGE:  return "Payload Too Large";
         case StatusCode::INTERNAL_ERROR:     return "Internal Server Error";
         case StatusCode::NOT_IMPLEMENTED:    return "Not Implemented";
+        case StatusCode::SERVICE_UNAVAILABLE: return "Service Unavailable";
     }
     return "Unknown";
 }
@@ -145,6 +147,14 @@ public:
         HttpResponse resp(StatusCode::NOT_IMPLEMENTED, "Not Implemented");
         resp.set_content_type("text/plain");
         resp.set_header("Connection", "close");
+        return resp;
+    }
+
+    static HttpResponse service_unavailable() {
+        HttpResponse resp(StatusCode::SERVICE_UNAVAILABLE, "Service Unavailable");
+        resp.set_content_type("text/plain");
+        resp.set_header("Connection", "close");
+        resp.set_header("Retry-After", "5");
         return resp;
     }
 

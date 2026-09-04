@@ -54,9 +54,10 @@ void TcpServer::start() {
     LOG_INFO("Listening on port " + std::to_string(config_.port) +
              " with " + std::to_string(config_.thread_count) + " threads");
 
-    pool_ = std::make_unique<ThreadPool>(config_.thread_count);
+    pool_ = std::make_unique<ThreadPool>(config_.thread_count, config_.queue_capacity);
 
     Metrics::instance().set_thread_count(pool_->thread_count());
+    Metrics::instance().set_queue_capacity(pool_->queue_capacity());
 
     accept_loop();
 
@@ -112,12 +113,29 @@ void TcpServer::accept_loop() {
         socket_t fd_copy = client_fd;
         std::string addr_copy = client_info;
 
+        Metrics::instance().set_active_workers(pool_ ? pool_->active_workers() : 0);
+
         try {
-            pool_->submit([this, fd_copy, addr_copy]() {
+            bool submitted = pool_->submit([this, fd_copy, addr_copy]() {
                 handle_client(fd_copy, addr_copy);
             });
+            if (!submitted) {
+                LOG_WARN("Queue full, sending 503 to " + client_info);
+                HttpResponse over = HttpResponse::service_unavailable();
+                std::string ser = over.serialize();
+                send_all(client_fd, ser.data(), ser.size());
+                Metrics::instance().add_bytes_sent(ser.size());
+                Metrics::instance().record_server_error();
+                close_socket(client_fd);
+                Metrics::instance().connection_closed();
+            }
         } catch (const std::exception& e) {
             LOG_ERROR("Failed to submit client task: " + std::string(e.what()));
+            HttpResponse over = HttpResponse::service_unavailable();
+            std::string ser = over.serialize();
+            send_all(client_fd, ser.data(), ser.size());
+            Metrics::instance().add_bytes_sent(ser.size());
+            Metrics::instance().record_server_error();
             close_socket(client_fd);
             Metrics::instance().connection_closed();
         }

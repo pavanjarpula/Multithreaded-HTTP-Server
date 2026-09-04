@@ -10,7 +10,7 @@
 using namespace server;
 
 TEST(blocking_queue_push_pop) {
-    BlockingQueue<int> q;
+    BoundedBlockingQueue<int> q;
     q.push(42);
     auto val = q.try_pop();
     ASSERT_TRUE(val.has_value());
@@ -18,13 +18,13 @@ TEST(blocking_queue_push_pop) {
 }
 
 TEST(blocking_queue_empty_pop) {
-    BlockingQueue<int> q;
+    BoundedBlockingQueue<int> q;
     auto val = q.try_pop();
     ASSERT_FALSE(val.has_value());
 }
 
 TEST(blocking_queue_fifo) {
-    BlockingQueue<int> q;
+    BoundedBlockingQueue<int> q;
     q.push(1);
     q.push(2);
     q.push(3);
@@ -34,24 +34,22 @@ TEST(blocking_queue_fifo) {
 }
 
 TEST(blocking_queue_shutdown) {
-    BlockingQueue<int> q;
+    BoundedBlockingQueue<int> q;
     q.shutdown();
     auto val = q.wait_and_pop();
     ASSERT_FALSE(val.has_value());
 }
 
 TEST(blocking_queue_threaded) {
-    BlockingQueue<int> q;
+    BoundedBlockingQueue<int> q(200);
     std::atomic<int> sum{0};
 
-    // Producer
     std::thread producer([&q]() {
         for (int i = 0; i < 100; ++i) {
             q.push(i);
         }
     });
 
-    // Consumer
     std::thread consumer([&q, &sum]() {
         for (int i = 0; i < 100; ++i) {
             auto val = q.wait_and_pop();
@@ -64,12 +62,19 @@ TEST(blocking_queue_threaded) {
     producer.join();
     consumer.join();
 
-    // Sum of 0..99 = 4950
     ASSERT_EQ(sum.load(), 4950);
 }
 
+TEST(blocking_queue_capacity_rejects) {
+    BoundedBlockingQueue<int> q(2);
+    ASSERT_TRUE(q.push(1));
+    ASSERT_TRUE(q.push(2));
+    ASSERT_FALSE(q.push(3));
+    ASSERT_EQ(q.size(), 2u);
+}
+
 TEST(thread_pool_executes_tasks) {
-    ThreadPool pool(4);
+    ThreadPool pool(4, 100);
     std::atomic<int> counter{0};
 
     for (int i = 0; i < 100; ++i) {
@@ -78,7 +83,6 @@ TEST(thread_pool_executes_tasks) {
         });
     }
 
-    // Wait for tasks to complete
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     pool.shutdown();
 
@@ -86,7 +90,7 @@ TEST(thread_pool_executes_tasks) {
 }
 
 TEST(thread_pool_concurrent_work) {
-    ThreadPool pool(4);
+    ThreadPool pool(4, 2000);
     std::atomic<int> counter{0};
     const int num_tasks = 1000;
 
@@ -101,20 +105,15 @@ TEST(thread_pool_concurrent_work) {
 }
 
 TEST(thread_pool_shutdown_prevents_new_tasks) {
-    ThreadPool pool(2);
+    ThreadPool pool(2, 100);
     pool.shutdown();
 
-    bool threw = false;
-    try {
-        pool.submit([]() {});
-    } catch (const std::runtime_error&) {
-        threw = true;
-    }
-    ASSERT_TRUE(threw);
+    bool accepted = pool.submit([]() {});
+    ASSERT_FALSE(accepted);
 }
 
 TEST(thread_pool_multiple_producers) {
-    ThreadPool pool(4);
+    ThreadPool pool(4, 500);
     std::atomic<int> counter{0};
     const int tasks_per_producer = 50;
     const int num_producers = 4;

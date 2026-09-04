@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTTP Playground - Multithreaded Server</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0d1117; --surface: #161b22; --border: #30363d;
+            --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+            --green: #3fb950; --red: #f85149; --orange: #d29922; --purple: #bc8cff;
+        }
+        body { font-family: 'JetBrains Mono', monospace; background: var(--bg); color: var(--text); min-height: 100vh; }
+        nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1rem 2rem; display: flex; align-items: center; gap: 1.5rem; }
+        nav a { color: var(--muted); text-decoration: none; font-size: 0.85rem; transition: color 0.2s; }
+        nav a:hover, nav a.active { color: var(--accent); }
+        nav .logo { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-right: 1rem; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.9rem; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+        .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; }
+        .panel h2 { font-size: 1rem; color: var(--accent); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+        label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.3rem; margin-top: 0.8rem; }
+        input, select, textarea {
+            width: 100%; padding: 0.6rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; color: var(--text); font-family: inherit; font-size: 0.85rem;
+        }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+        textarea { resize: vertical; min-height: 80px; }
+        .row { display: flex; gap: 0.8rem; align-items: flex-end; }
+        .row > * { flex: 1; }
+        .btn {
+            padding: 0.6rem 1.5rem; border: none; border-radius: 4px; cursor: pointer;
+            font-family: inherit; font-size: 0.85rem; font-weight: 600; transition: all 0.2s;
+        }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover { background: #79c0ff; }
+        .btn-danger { background: var(--red); color: #fff; }
+        .btn-danger:hover { opacity: 0.85; }
+        .status-bar { display: flex; gap: 1.5rem; align-items: center; margin-top: 1rem; font-size: 0.8rem; }
+        .status-code { font-size: 1.5rem; font-weight: 700; }
+        .status-2xx { color: var(--green); }
+        .status-4xx { color: var(--orange); }
+        .status-5xx { color: var(--red); }
+        .response-body {
+            background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+            padding: 1rem; font-size: 0.8rem; white-space: pre-wrap; word-break: break-all;
+            max-height: 400px; overflow-y: auto; margin-top: 0.5rem; line-height: 1.5;
+        }
+        .response-headers { font-size: 0.75rem; color: var(--muted); margin-top: 0.5rem; }
+        .quick-links { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
+        .quick-link {
+            padding: 0.3rem 0.8rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 20px; font-size: 0.75rem; color: var(--accent); cursor: pointer;
+            transition: all 0.2s; font-family: inherit;
+        }
+        .quick-link:hover { border-color: var(--accent); background: rgba(88,166,255,0.1); }
+        .method-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 700; }
+        .method-GET { background: rgba(63,185,80,0.2); color: var(--green); }
+        .method-POST { background: rgba(88,166,255,0.2); color: var(--accent); }
+        .method-PUT { background: rgba(210,153,34,0.2); color: var(--orange); }
+        .method-DELETE { background: rgba(248,81,73,0.2); color: var(--red); }
+        .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 0.5rem; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .history-item { padding: 0.5rem; border-bottom: 1px solid var(--border); font-size: 0.8rem; cursor: pointer; display: flex; gap: 0.5rem; align-items: center; }
+        .history-item:hover { background: var(--bg); }
+        .history-item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <nav>
+        <span class="logo">C++ Server</span>
+        <a href="/">Home</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/playground" class="active">Playground</a>
+        <a href="/lab">Lab</a>
+        <a href="/health">Health</a>
+    </nav>
+
+    <div class="container">
+        <h1>HTTP Playground</h1>
+        <p class="subtitle">Send requests to the server and inspect responses in real-time</p>
+
+        <div class="quick-links">
+            <button class="quick-link" onclick="quick('GET','/hello')"><span class="method-badge method-GET">GET</span> /hello</button>
+            <button class="quick-link" onclick="quick('GET','/health')"><span class="method-badge method-GET">GET</span> /health</button>
+            <button class="quick-link" onclick="quick('GET','/metrics')"><span class="method-badge method-GET">GET</span> /metrics</button>
+            <button class="quick-link" onclick="quick('GET','/dashboard')"><span class="method-badge method-GET">GET</span> /dashboard</button>
+            <button class="quick-link" onclick="quick('GET','/work?delay=200')"><span class="method-badge method-GET">GET</span> /work</button>
+            <button class="quick-link" onclick="quick('POST','/echo','Hello from Playground!')"><span class="method-badge method-POST">POST</span> /echo</button>
+        </div>
+
+        <div class="grid">
+            <div class="panel">
+                <h2>Request</h2>
+                <div class="row">
+                    <div style="flex:0 0 120px;">
+                        <label>Method</label>
+                        <select id="method">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="HEAD">HEAD</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Endpoint</label>
+                        <input id="endpoint" type="text" value="/hello" placeholder="/path">
+                    </div>
+                </div>
+                <label>Custom Headers (one per line, Key: Value)</label>
+                <textarea id="headers" rows="2" placeholder="Content-Type: text/plain"></textarea>
+                <label>Request Body</label>
+                <textarea id="body" rows="4" placeholder="Request body content..."></textarea>
+                <div style="margin-top:1rem; display:flex; gap:0.8rem; align-items:center;">
+                    <button class="btn btn-primary" id="sendBtn" onclick="sendRequest()">
+                        <span id="sendLabel">Send Request</span>
+                    </button>
+                    <span id="sendTime" style="font-size:0.8rem; color:var(--muted);"></span>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Response</h2>
+                <div class="status-bar" id="statusBar">
+                    <span class="status-code" id="statusCode">--</span>
+                    <span id="statusText" style="color:var(--muted);">No request sent yet</span>
+                    <span id="latency" style="margin-left:auto; color:var(--muted);"></span>
+                </div>
+                <label>Response Headers</label>
+                <div class="response-headers" id="responseHeaders">-</div>
+                <label>Response Body</label>
+                <div class="response-body" id="responseBody">Send a request to see the response here.</div>
+            </div>
+        </div>
+
+        <div class="panel" style="margin-top:1.5rem;">
+            <h2>Request History</h2>
+            <div id="history" style="max-height:200px; overflow-y:auto;">
+                <div style="color:var(--muted); font-size:0.8rem; padding:0.5rem;">No requests yet.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const history = [];
+        function quick(method, path, body) {
+            document.getElementById('method').value = method;
+            document.getElementById('endpoint').value = path;
+            if (body) document.getElementById('body').value = body;
+            else document.getElementById('body').value = '';
+            sendRequest();
+        }
+
+        async function sendRequest() {
+            const btn = document.getElementById('sendBtn');
+            const label = document.getElementById('sendLabel');
+            const method = document.getElementById('method').value;
+            const endpoint = document.getElementById('endpoint').value;
+            const headersRaw = document.getElementById('headers').value.trim();
+            const body = document.getElementById('body').value;
+
+            btn.disabled = true;
+            label.innerHTML = '<span class="spinner"></span>Sending...';
+
+            const headers = {};
+            headersRaw.split('\n').forEach(line => {
+                const [k, ...v] = line.split(':');
+                if (k && v.length) headers[k.trim()] = v.join(':').trim();
+            });
+
+            const t0 = performance.now();
+            try {
+                const opts = { method, headers };
+                if (method !== 'GET' && method !== 'HEAD') {
+                    opts.body = body;
+                    if (!headers['Content-Type']) opts.headers['Content-Type'] = 'text/plain';
+                }
+                const resp = await fetch(endpoint, opts);
+                const elapsed = (performance.now() - t0).toFixed(1);
+                const text = await resp.text();
+
+                document.getElementById('statusCode').textContent = resp.status;
+                document.getElementById('statusCode').className = 'status-code ' +
+                    (resp.status < 300 ? 'status-2xx' : resp.status < 500 ? 'status-4xx' : 'status-5xx');
+                document.getElementById('statusText').textContent = resp.statusText || 'OK';
+                document.getElementById('latency').textContent = elapsed + ' ms';
+                document.getElementById('sendTime').textContent = elapsed + ' ms';
+
+                let hdrs = '';
+                resp.headers.forEach((v, k) => { hdrs += k + ': ' + v + '\n'; });
+                document.getElementById('responseHeaders').textContent = hdrs || '(none)';
+                document.getElementById('responseBody').textContent = text;
+
+                history.unshift({ method, endpoint, status: resp.status, time: elapsed, ts: new Date().toLocaleTimeString() });
+                renderHistory();
+            } catch (err) {
+                const elapsed = (performance.now() - t0).toFixed(1);
+                document.getElementById('statusCode').textContent = 'ERR';
+                document.getElementById('statusCode').className = 'status-code status-5xx';
+                document.getElementById('statusText').textContent = err.message;
+                document.getElementById('latency').textContent = elapsed + ' ms';
+                document.getElementById('responseBody').textContent = 'Request failed: ' + err.message;
+                document.getElementById('responseHeaders').textContent = '-';
+                history.unshift({ method, endpoint, status: 'ERR', time: elapsed, ts: new Date().toLocaleTimeString() });
+                renderHistory();
+            }
+            btn.disabled = false;
+            label.textContent = 'Send Request';
+        }
+
+        function renderHistory() {
+            const el = document.getElementById('history');
+            if (!history.length) { el.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem;">No requests yet.</div>'; return; }
+            el.innerHTML = history.slice(0, 50).map(h =>
+                `<div class="history-item" onclick="replay('${h.method}','${h.endpoint}')">
+                    <span class="method-badge method-${h.method}">${h.method}</span>
+                    <span style="flex:1;">${h.endpoint}</span>
+                    <span class="status-code" style="font-size:0.8rem;color:${h.status<300?'var(--green)':h.status<500?'var(--orange)':'var(--red)'}">${h.status}</span>
+                    <span style="color:var(--muted);">${h.time}ms</span>
+                    <span style="color:var(--muted);font-size:0.7rem;">${h.ts}</span>
+                </div>`
+            ).join('');
+        }
+
+        function replay(method, endpoint) {
+            document.getElementById('method').value = method;
+            document.getElementById('endpoint').value = endpoint;
+            sendRequest();
+        }
+
+        document.getElementById('endpoint').addEventListener('keydown', e => { if (e.key === 'Enter') sendRequest(); });
+    </script>
+</body>
+</html>
